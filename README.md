@@ -11,6 +11,14 @@ Stories from both sources are summarized, de-duplicated (Gmail wins), mixed toge
 
 > This repository is published as a **reference example** of how to structure a multi-source, document-producing Claude Code skill. The feed URL, recipient name, and account-specific IDs have been replaced with placeholders — see [Setup](#setup).
 
+## Sample output
+
+Rendered from synthetic placeholder content — no real names, articles, or subscriptions.
+
+| Cover | Inner page |
+|---|---|
+| ![Sample digest cover](docs/sample-cover.png) | ![Sample digest inner page](docs/sample-page.png) |
+
 ## What's in here
 
 ```
