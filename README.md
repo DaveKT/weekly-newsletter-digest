@@ -1,15 +1,20 @@
 # Weekly Newsletter Digest
 
-A [Claude Code](https://claude.com/claude-code) **skill** that compiles a week's reading into a single, designed PDF "meta-newsletter" — a navy/teal/gold magazine-style cover, story-by-story summaries, and a clickable bibliography.
+A standalone Python pipeline that compiles a week of reading into a single,
+designed PDF "meta-newsletter" — a navy/teal/gold magazine-style cover,
+story-by-story summaries, and a clickable bibliography.
 
-It pulls from two sources for a given Monday–Sunday week:
+It runs entirely on your own machine (cron-friendly, no cloud sandbox), pulling
+from two sources for a given Monday–Sunday week:
 
-1. **Gmail** — emails tagged with a `News Letter` label.
+1. **Gmail** — emails tagged with a `News Letter` label (read-only Gmail API).
 2. **Reeder** — articles saved to a [Reeder](https://reederapp.com/) read-later shared feed.
 
-Stories from both sources are summarized, de-duplicated (Gmail wins), mixed together by date, and rendered into one PDF.
+Stories from both sources are summarized by **Claude via [OpenRouter](https://openrouter.ai/)**,
+de-duplicated (Gmail wins), mixed together by date, and rendered to a PDF.
 
-> This repository is published as a **reference example** of how to structure a multi-source, document-producing Claude Code skill. The feed URL, recipient name, and account-specific IDs have been replaced with placeholders — see [Setup](#setup).
+> Published as a **reference example**. Secrets, the feed URL, and the recipient
+> name are placeholders — see [SETUP.md](SETUP.md).
 
 ## Sample output
 
@@ -19,76 +24,88 @@ Rendered from synthetic placeholder content — no real names, articles, or subs
 |---|---|
 | ![Sample digest cover](docs/sample-cover.png) | ![Sample digest inner page](docs/sample-page.png) |
 
-## What's in here
+## How it works
+
+```
+run.sh (cron entry)
+  └─ source mysecrets  →  uv run python -m weekly_digest
+        1. fetch_gmail    — News Letter-labeled emails in the Mon–Sun window
+        2. fetch_reeder   — read-later items, date-filtered to the same window
+        3. dedup          — Gmail wins on overlap
+        4. extract        — trafilatura pulls full text for link-only/thin items
+        5. summarize      — Claude (OpenRouter) → structured JSON sections + TOC
+        6. assemble       — content dict + bibliography + issue number
+        7. render         — build_pdf.py → ~/Desktop/weekly_digest_<issue>.pdf
+```
+
+Dependencies are managed by **[uv](https://docs.astral.sh/uv/)** from
+`pyproject.toml`, so cron never touches a hand-built virtualenv. The PDF layout
+is intentionally **locked** (palette, cover coordinates, typography) — it's part
+of the deliverable, not improvised per run.
+
+## Layout
 
 ```
 weekly-newsletter-digest/
-├── SKILL.md                      # the skill: workflow, rules, and phase-by-phase instructions
-├── references/
-│   └── content_schema.md         # authoritative schema for the content dict the renderer consumes
-└── scripts/
-    ├── build_pdf.py              # ReportLab rendering engine (locked design)
-    └── reeder_read_later.py      # zero-dependency fetcher for a Reeder shared JSON Feed
+├── run.sh                 # cron entry: sources mysecrets, runs the pipeline via uv
+├── gmail_auth.py          # one-time: mints the Gmail read-only refresh token
+├── mysecrets.example      # secrets template (copy → mysecrets, gitignored)
+├── smoke_test.py          # offline self-test: Reeder + render, no secrets
+├── pyproject.toml         # dependencies (managed by uv)
+├── SETUP.md               # full setup + cron instructions
+└── weekly_digest/
+    ├── config.py          # env, Mon–Sun window, issue number
+    ├── gmail_source.py    # Gmail API (read-only OAuth)
+    ├── reeder_source.py   # date-filtered Reeder feed
+    ├── reeder_read_later.py  # zero-dependency Reeder JSON-feed fetcher
+    ├── extract.py         # trafilatura full-text extraction
+    ├── summarize.py       # Claude via OpenRouter → structured JSON
+    ├── assemble.py        # dedup, ordering, bibliography, content dict
+    └── build_pdf.py       # the locked ReportLab renderer
 ```
 
-## How it works
+## Quick start
 
-The skill runs in five phases (detailed in [`SKILL.md`](weekly-newsletter-digest/SKILL.md)):
+```bash
+git clone https://github.com/<you>/weekly-newsletter-digest
+cd weekly-newsletter-digest
+cp mysecrets.example mysecrets && chmod 600 mysecrets   # then fill it in
+./run.sh
+```
 
-1. **Fetch** newsletter emails from Gmail for the target week.
-2. **Fetch** read-later articles from the Reeder shared feed, filtered to the same week.
-3. **Extract & summarize** each story in original prose; fetch full text for link-only items.
-4. **Compose** a structured content dict matching [`content_schema.md`](weekly-newsletter-digest/references/content_schema.md).
-5. **Render** the PDF via `build_pdf.py`.
+Full instructions — Gmail OAuth, OpenRouter, and cron — are in **[SETUP.md](SETUP.md)**.
 
-The PDF layout is intentionally **locked** — palette, cover coordinates, typography, and page chrome are part of the deliverable and aren't meant to be improvised per run.
+## Configuration
+
+All settings come from environment variables, sourced from `mysecrets`:
+
+| Variable | Purpose |
+|---|---|
+| `OPENROUTER_API_KEY` | OpenRouter key for summarization |
+| `OPENROUTER_MODEL` | e.g. `anthropic/claude-sonnet-4.6` or `~anthropic/claude-sonnet-latest` |
+| `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` | Read-only Gmail API auth (see `gmail_auth.py`) |
+| `GMAIL_LABEL` | Gmail label to compile (default `News Letter`) |
+| `REEDER_FEED_URL` | Your Reeder shared feed (the `.json` suffix is required) |
+| `DIGEST_OUTPUT_DIR` | Where the PDF lands (default `~/Desktop`) |
+| `DIGEST_COMPILED_FOR` | Recipient name on the cover |
+| `DIGEST_WEEK_START` / `DIGEST_WEEK_END` | Optional `YYYY-MM-DD` override of the default previous-week window |
 
 ## The Reeder fetcher
 
-`scripts/reeder_read_later.py` is a standalone, standard-library-only fetcher for a Reeder shared JSON Feed (JSON Feed 1.1). It handles the endpoint's quirks: a 302 redirect to a compressed (gzip/deflate) body, and JSON Feed 1.0/1.1 author-field differences. It can be used on its own:
+`weekly_digest/reeder_read_later.py` is a standalone, standard-library-only
+fetcher for a Reeder shared JSON Feed (JSON Feed 1.1). It handles the endpoint's
+302 redirect to compressed object storage and the JSON Feed 1.0/1.1 author-field
+differences. The shared feed only holds the last ~50 items, so run often enough
+that items don't roll off before capture. Note the `.json` suffix is required on
+the feed URL.
 
-```bash
-python3 scripts/reeder_read_later.py \
-  --url https://reederapp.net/<your-feed-id>.json \
-  --all --format jsonl --output read_later
-```
+## Cost
 
-Note the `.json` suffix is required on the shared-feed URL. The shared feed only holds the last ~50 items added to the tag, so run often enough that items don't roll off before capture.
-
-## Setup
-
-To adapt this for your own use, replace the placeholders:
-
-| Placeholder | Where | Replace with |
-|---|---|---|
-| `https://reederapp.net/<your-feed-id>.json` | `SKILL.md` (Phase 2) | Your own Reeder shared-feed URL (publish a tag as a shared feed in Reeder) |
-| `Your Name` | `SKILL.md`, `content_schema.md` | The recipient name for the cover/metadata |
-| `News Letter` Gmail label | `SKILL.md` (Phase 1) | Your own Gmail label name |
-
-The renderer requires `reportlab`. The Gmail and web-fetch steps assume a Claude Code environment with a Gmail connector and web access.
-
-### Sandbox network access
-
-If you run this in a sandboxed environment (e.g. Claude Code's Bash sandbox), allow the feed's two domains or the Reeder fetch fails with HTTP 403 and the digest silently falls back to Gmail-only. The entry point redirects to object storage, so both are required. In Claude Code `settings.json`:
-
-```json
-{
-  "sandbox": {
-    "network": {
-      "allowedDomains": ["reederapp.net", "*.s3.pub1.infomaniak.cloud"]
-    }
-  }
-}
-```
-
-## Packaging as a `.skill`
-
-To bundle the directory into an installable skill file:
-
-```bash
-cd weekly-newsletter-digest && zip -r ../weekly-newsletter-digest.skill . && cd ..
-```
+The Google/Gmail side is free (well within the Gmail API's free quota; no billing
+account needed). The only cost is OpenRouter summarization — roughly a few dollars
+a month, prepaid so you set the ceiling. Pick a cheaper model slug to reduce it.
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE). This project began as a Claude Code skill and was rewritten as a
+standalone pipeline so it can run unattended via cron.

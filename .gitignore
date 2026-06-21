@@ -1,14 +1,21 @@
+# Secrets — never commit
+mysecrets
+
 # Python
 __pycache__/
 *.pyc
+.venv/
+
+# uv
+.uv/
 
 # Reeder fetcher state and outputs
 .reeder_seen.json
 read_later.jsonl
 read_later.csv
 
-# Built skill bundle
-*.skill
+# Generated digests
+weekly_digest_*.pdf
 
 # OS
 .DS_Store
