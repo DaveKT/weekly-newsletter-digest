@@ -60,6 +60,12 @@ The Reeder shared feed is a public JSON Feed 1.1 endpoint. Fetch it every run â€
 https://reederapp.net/<your-feed-id>.json
 ```
 
+> **Sandbox network requirement.** If you run this skill in a sandboxed environment (such as Claude Code's Bash sandbox), the fetch will fail with HTTP 403 unless the feed's domains are on the network allowlist. The feed entry point 302-redirects to Reeder's object storage, so **both** of these must be allowed:
+> - `reederapp.net` (the entry point)
+> - `*.s3.pub1.infomaniak.cloud` (where the actual feed body is served)
+>
+> In Claude Code, add them under `sandbox.network.allowedDomains` in `settings.json`. Without this, the digest silently falls back to Gmail-only.
+
 ### Fetching the feed
 
 **Primary method â€” bundled fetcher.** Use the bundled `scripts/reeder_read_later.py`, which was purpose-built for this endpoint. It is important to use it rather than fetching the URL naively, because this endpoint:

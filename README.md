@@ -67,6 +67,20 @@ To adapt this for your own use, replace the placeholders:
 
 The renderer requires `reportlab`. The Gmail and web-fetch steps assume a Claude Code environment with a Gmail connector and web access.
 
+### Sandbox network access
+
+If you run this in a sandboxed environment (e.g. Claude Code's Bash sandbox), allow the feed's two domains or the Reeder fetch fails with HTTP 403 and the digest silently falls back to Gmail-only. The entry point redirects to object storage, so both are required. In Claude Code `settings.json`:
+
+```json
+{
+  "sandbox": {
+    "network": {
+      "allowedDomains": ["reederapp.net", "*.s3.pub1.infomaniak.cloud"]
+    }
+  }
+}
+```
+
 ## Packaging as a `.skill`
 
 To bundle the directory into an installable skill file:
