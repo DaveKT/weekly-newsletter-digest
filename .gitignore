@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# Reeder fetcher state and outputs
+.reeder_seen.json
+read_later.jsonl
+read_later.csv
+
+# Built skill bundle
+*.skill
+
+# OS
+.DS_Store
