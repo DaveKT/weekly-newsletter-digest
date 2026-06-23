@@ -14,6 +14,22 @@ THIN_THRESHOLD = 600
 # Cap extracted text so a single 100k-char article doesn't blow up token cost.
 MAX_CHARS = 40_000
 
+# Signatures of "link-only" emails (e.g. Six Colors) whose body is just a
+# "view in browser" notice — force extraction even when the boilerplate is long.
+_LINK_ONLY_SIGNATURES = (
+    "can't display html",
+    "view the newsletter by clicking",
+    "view this email in your browser",
+    "view it in your browser",
+    "view this email online",
+    "view this post in your browser",
+)
+
+
+def _is_link_only(text: str) -> bool:
+    low = text.lower()
+    return any(sig in low for sig in _LINK_ONLY_SIGNATURES)
+
 
 def _extract_url(url: str) -> str:
     if not url:
@@ -33,7 +49,8 @@ def _extract_url(url: str) -> str:
 def enrich(stories: list[Story]) -> list[Story]:
     """For thin stories, fetch full article text from primary_url in place."""
     for s in stories:
-        if len(s.body_text.strip()) >= THIN_THRESHOLD:
+        thin = len(s.body_text.strip()) < THIN_THRESHOLD
+        if not thin and not _is_link_only(s.body_text):
             if len(s.body_text) > MAX_CHARS:
                 s.body_text = s.body_text[:MAX_CHARS]
             continue

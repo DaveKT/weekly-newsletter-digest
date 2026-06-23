@@ -50,7 +50,11 @@ def main(argv: list[str] | None = None) -> int:
     sections = []
     for i, s in enumerate(stories, 1):
         _log(f"summarizing {i}/{len(stories)}: {s.publication} — {s.title[:60]}")
-        sections.append(summarize.summarize_story(cfg, s))
+        try:
+            sections.append(summarize.summarize_story(cfg, s))
+        except Exception as e:
+            _log(f"  summarize failed ({e}); using fallback section")
+            sections.append(summarize.fallback_section(s))
 
     toc = summarize.build_toc(cfg, sections)
     _log(f"toc: {len(toc)} entries")

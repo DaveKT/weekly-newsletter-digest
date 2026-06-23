@@ -37,16 +37,20 @@ def _chat(cfg: Config, system: str, user: str, *, max_tokens: int = 2000) -> str
         "temperature": 0.4,
     }
     last_err = None
-    for attempt in range(3):
+    for attempt in range(4):
         try:
             r = requests.post(
                 f"{cfg.openrouter_base_url}/chat/completions",
                 headers=headers, json=payload, timeout=_TIMEOUT,
             )
             if r.status_code == 200:
-                return r.json()["choices"][0]["message"]["content"]
-            last_err = f"HTTP {r.status_code}: {r.text[:300]}"
-        except requests.RequestException as e:
+                content = r.json()["choices"][0]["message"].get("content") or ""
+                if content.strip():
+                    return content
+                last_err = "empty content in 200 response"  # transient; retry
+            else:
+                last_err = f"HTTP {r.status_code}: {r.text[:300]}"
+        except (requests.RequestException, KeyError, ValueError) as e:
             last_err = str(e)
         time.sleep(2 * (attempt + 1))
     raise RuntimeError(f"OpenRouter request failed after retries: {last_err}")
@@ -114,6 +118,17 @@ def summarize_story(cfg: Config, story: Story) -> dict:
         "deck": (data.get("deck") or "").strip(),
         "subsections": clean_subs or [{"subhead": story.title,
                                        "paragraphs": [story.body_text[:400]]}],
+    }
+
+
+def fallback_section(story: Story) -> dict:
+    """Minimal section built without the LLM, for when summarization fails."""
+    text = (story.body_text or story.title).strip()
+    return {
+        "kicker": story.publication,
+        "headline": story.title,
+        "deck": text[:300] or story.title,
+        "subsections": [{"subhead": "Summary", "paragraphs": [text[:800] or story.title]}],
     }
 
 
