@@ -28,6 +28,25 @@ _SKIP_SUBJECT = re.compile(
 )
 _URL_RE = re.compile(r"https?://[^\s\)\]\>\"']+")
 
+# Email platforms where the sender's display name is the real publication,
+# not the platform itself — trust the display name for these domains.
+_GENERIC_PLATFORMS = ("substack.com", "circle.so", "beehiiv.com",
+                      "mailchimp", "list-manage.com", "memberful.com")
+
+
+def _clean_platform_name(name: str) -> str:
+    """Substack display names are 'Author from Publication' — keep Publication."""
+    if " from " in name:
+        return name.split(" from ", 1)[1].strip()
+    return name.strip()
+
+
+def _platform_author(name: str) -> str:
+    """For 'Author from Publication', return the author; else '' (name is the pub)."""
+    if " from " in name:
+        return name.split(" from ", 1)[0].strip()
+    return ""
+
 
 def _credentials(cfg: Config) -> Credentials:
     creds = Credentials(
@@ -139,11 +158,15 @@ def fetch(cfg: Config) -> list[Story]:
             continue
 
         sender_name, sender_email = _parse_sender(_header(headers, "From"))
-        publication = sender_name or publication_from_domain(sender_email)
-        if "@" in sender_email:
-            mapped = publication_from_domain(sender_email)
-            if mapped != "Unknown":
-                publication = mapped
+        domain = sender_email.split("@")[-1].lower() if "@" in sender_email else ""
+        if sender_name and any(p in domain for p in _GENERIC_PLATFORMS):
+            publication = _clean_platform_name(sender_name)
+            author = _platform_author(sender_name)
+            authors = [author] if author else []
+        else:
+            mapped = publication_from_domain(sender_email) if "@" in sender_email else "Unknown"
+            publication = mapped if mapped != "Unknown" else (sender_name or "Unknown")
+            authors = [sender_name] if sender_name else []
 
         # Date from internal timestamp (ms since epoch).
         ts = int(msg.get("internalDate", "0")) / 1000
@@ -161,7 +184,7 @@ def fetch(cfg: Config) -> list[Story]:
             Story(
                 source="gmail",
                 publication=publication,
-                authors=[sender_name] if sender_name else [],
+                authors=authors,
                 published=published,
                 title=subject,
                 body_text=body,

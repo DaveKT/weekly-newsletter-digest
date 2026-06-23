@@ -54,8 +54,12 @@ def dedup_and_order(gmail: list[Story], reeder: list[Story]) -> list[Story]:
 
 
 def _byline(story: Story) -> str:
-    authors = ", ".join(a for a in story.authors if a) or story.publication
-    return f"By {authors} · {story.publication} · {_mdy(story.published)}"
+    authors = ", ".join(a for a in story.authors if a).strip()
+    pub = story.publication
+    date = _mdy(story.published)
+    if authors and authors.lower() != pub.lower():
+        return f"By {authors} · {pub} · {date}"
+    return f"{pub} · {date}"
 
 
 def _bibliography(stories: list[Story]) -> list[dict]:
