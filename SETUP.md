@@ -62,6 +62,16 @@ On success it prints the PDF path (default `~/Desktop/weekly_digest_<issue>.pdf`
 To test a specific past week, set `DIGEST_WEEK_START` / `DIGEST_WEEK_END`
 (`YYYY-MM-DD`) in `mysecrets`.
 
+### Interim report (on demand)
+```bash
+./run.sh --since-last-run
+```
+Covers everything new since the last interim run — Gmail received and Reeder
+items **saved** since then (first run seeds to 7 days ago). It uses its own
+state file (`.reeder_interim_state.json`) and does **not** affect the scheduled
+weekly window: the next cron run still produces the full previous-week digest.
+Reeder filtering is by save date, so a recently-saved older article is included.
+
 An offline self-test (Reeder + render only — no Gmail/OpenRouter, no secrets)
 is available. Point it at any public Reeder feed:
 ```bash

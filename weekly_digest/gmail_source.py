@@ -119,15 +119,23 @@ def _parse_sender(from_header: str) -> tuple[str, str]:
     return "", from_header.strip()
 
 
-def fetch(cfg: Config) -> list[Story]:
-    """Return editorial newsletter Stories within the coverage window."""
+def fetch(cfg: Config, since: datetime | None = None) -> list[Story]:
+    """Return editorial newsletter Stories.
+
+    Default: messages within cfg's coverage window. If `since` (aware datetime)
+    is given, messages received strictly after it instead (interim reports).
+    """
     service = build("gmail", "v1", credentials=_credentials(cfg), cache_discovery=False)
 
     label_id = _find_label_id(service, cfg.gmail_label)
-    # Gmail `before:` is exclusive; add a day so Sunday is included.
-    after = cfg.coverage_start.strftime("%Y/%m/%d")
-    before = (cfg.coverage_end + timedelta(days=1)).strftime("%Y/%m/%d")
-    query = f'label:"{cfg.gmail_label}" after:{after} before:{before}'
+    if since is None:
+        # Gmail `before:` is exclusive; add a day so Sunday is included.
+        after = cfg.coverage_start.strftime("%Y/%m/%d")
+        before = (cfg.coverage_end + timedelta(days=1)).strftime("%Y/%m/%d")
+        query = f'label:"{cfg.gmail_label}" after:{after} before:{before}'
+    else:
+        # Gmail accepts a Unix timestamp for after:
+        query = f'label:"{cfg.gmail_label}" after:{int(since.timestamp())}'
 
     list_kwargs = {"userId": "me", "q": query, "maxResults": 50}
     if label_id:
@@ -170,6 +178,8 @@ def fetch(cfg: Config) -> list[Story]:
 
         # Date from internal timestamp (ms since epoch).
         ts = int(msg.get("internalDate", "0")) / 1000
+        if since is not None and ts and ts <= since.timestamp():
+            continue  # precise cutoff (Gmail after: is day-granular)
         published = datetime.fromtimestamp(ts).date() if ts else cfg.coverage_start
 
         urls = []

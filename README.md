@@ -43,6 +43,11 @@ Dependencies are managed by **[uv](https://docs.astral.sh/uv/)** from
 is intentionally **locked** (palette, cover coordinates, typography) — it's part
 of the deliverable, not improvised per run.
 
+Reeder items are filtered by **save date** (when you added them to the read-later
+tag), not the article's publish date. Run `./run.sh --since-last-run` for an
+on-demand interim report of everything new since the last interim run; it keeps
+its own state and never affects the scheduled weekly window.
+
 ## Layout
 
 ```

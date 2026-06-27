@@ -9,8 +9,9 @@ __pycache__/
 # uv
 .uv/
 
-# Reeder fetcher state and outputs
+# Reeder fetcher / interim-report state and outputs
 .reeder_seen.json
+.reeder_interim_state.json
 read_later.jsonl
 read_later.csv
 
